@@ -1,0 +1,139 @@
+{
+    "Announce": {
+        "Color": {
+            "A": 1,
+            "B": 0.2,
+            "G": 0.85,
+            "R": 1
+        },
+        "DefaultSeconds": 60,
+        "Enabled": true,
+        "MaxSeconds": 300,
+        "Scale": 1.3
+    },
+    "General": {
+        "Prefix": "[QoL] ",
+        "SenderName": "Serveur"
+    },
+    "Homes": {
+        "AllowWhileRidingDino": false,
+        "CooldownSeconds": 300,
+        "Enabled": true,
+        "MaxHomes": 3,
+        "WarmupSeconds": 10
+    },
+    "Kits": {
+        "Enabled": true,
+        "List": [
+            {
+                "CooldownSeconds": 0,
+                "Description": "Equipement de depart",
+                "Items": [
+                    {
+                        "Amount": 1,
+                        "Blueprint": "Blueprint'/Game/PrimalEarth/CoreBlueprints/Weapons/PrimalItem_WeaponStonePick.PrimalItem_WeaponStonePick'",
+                        "ForceBlueprint": false,
+                        "Quality": 0
+                    },
+                    {
+                        "Amount": 1,
+                        "Blueprint": "Blueprint'/Game/PrimalEarth/CoreBlueprints/Weapons/PrimalItem_WeaponStoneHatchet.PrimalItem_WeaponStoneHatchet'",
+                        "ForceBlueprint": false,
+                        "Quality": 0
+                    },
+                    {
+                        "Amount": 1,
+                        "Blueprint": "Blueprint'/Game/PrimalEarth/CoreBlueprints/Weapons/PrimalItem_WeaponTorch.PrimalItem_WeaponTorch'",
+                        "ForceBlueprint": false,
+                        "Quality": 0
+                    },
+                    {
+                        "Amount": 20,
+                        "Blueprint": "Blueprint'/Game/PrimalEarth/CoreBlueprints/Items/Consumables/PrimalItemConsumable_CookedMeat.PrimalItemConsumable_CookedMeat'",
+                        "ForceBlueprint": false,
+                        "Quality": 0
+                    }
+                ],
+                "MaxUses": 1,
+                "Name": "starter"
+            }
+        ]
+    },
+    "Messages": {
+        "Cooldown": "Patientez encore {0} avant de reutiliser cette commande.",
+        "HomeDeleted": "Point '{0}' supprime.",
+        "HomeLimit": "Vous avez atteint la limite de {0} points. Supprimez-en un avec /delhome.",
+        "HomeList": "Vos points : {0}",
+        "HomeListEmpty": "Vous n'avez aucun point enregistre. Utilisez /sethome <nom>.",
+        "HomeSet": "Point '{0}' enregistre.",
+        "HomeUnknown": "Aucun point nomme '{0}'. Tapez /homes pour la liste.",
+        "KitExhausted": "Vous avez deja utilise toutes vos utilisations du kit '{0}'.",
+        "KitGiven": "Kit '{0}' recu.",
+        "KitList": "Kits disponibles : {0}",
+        "KitListEmpty": "Aucun kit disponible.",
+        "KitPartial": "Kit '{0}' recu, mais {1} objet(s) n'ont pas pu etre remis (inventaire plein ?).",
+        "KitUnknown": "Kit '{0}' inconnu. Tapez /kit pour la liste.",
+        "NoPermission": "Cette commande est desactivee sur ce serveur.",
+        "OnDino": "Impossible : descendez de votre monture d'abord.",
+        "PlayerAmbiguous": "Plusieurs joueurs correspondent a '{0}'. Soyez plus precis.",
+        "PlayerDead": "Impossible : votre personnage est mort.",
+        "PlayerNotFound": "Aucun joueur connecte ne correspond a '{0}'.",
+        "TeleportDone": "Teleportation effectuee.",
+        "TeleportFailed": "Teleportation impossible : {0}",
+        "TpaAccepted": "Demande acceptee.",
+        "TpaDenied": "Demande refusee.",
+        "TpaDeniedByTarget": "{0} a refuse votre demande.",
+        "TpaNoRequest": "Aucune demande de teleportation en attente.",
+        "TpaReceived": "{0} demande a se teleporter vers vous. /tpaccept ou /tpdeny.",
+        "TpaSelf": "Vous ne pouvez pas vous teleporter vers vous-meme.",
+        "TpaSent": "Demande envoyee a {0}. Elle expire dans {1}.",
+        "Usage": "Usage : {0}",
+        "Warmup": "Teleportation dans {0}. Ne bougez pas."
+    },
+    "Tpa": {
+        "AllowWhileRidingDino": false,
+        "CooldownSeconds": 180,
+        "Enabled": true,
+        "RequestTimeoutSeconds": 60,
+        "WarmupSeconds": 10
+    },
+    "WildLevels": {
+        "Bands": [
+            {
+                "From": 100,
+                "Percent": 46,
+                "To": 109
+            },
+            {
+                "From": 110,
+                "Percent": 28,
+                "To": 119
+            },
+            {
+                "From": 120,
+                "Percent": 24.989999771118164,
+                "To": 129
+            },
+            {
+                "From": 130,
+                "Percent": 1,
+                "To": 139
+            },
+            {
+                "From": 140,
+                "Percent": 0.009999999776482582,
+                "To": 150
+            }
+        ],
+        "Enabled": false,
+        "MaxLevel": 150,
+        "MinLevel": 100
+    },
+    "Window": {
+        "BlueprintPath": "Blueprint'/AsaQoLUI/AsaQoLSingleton.AsaQoLSingleton'",
+        "Enabled": true,
+        "FunctionName": "ShowInventoryWindow",
+        "Radius": 30000,
+        "Title": "Inventaires"
+    }
+}
