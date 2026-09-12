@@ -1,3 +1,5 @@
+***Français** · [English](installation.en.md)*
+
 # Installer AsaQoL
 
 Trois briques, souvent confondues, et qui s'installent séparément :

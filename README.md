@@ -8,9 +8,10 @@ Construit sur [AsaApi](https://github.com/ArkServerApi/AsaApi) (v1.19), à parti
 
 | | |
 |---|---|
-| **[Installer](docs/installation.md)** | AsaApi, le plugin, le mod — et comment vérifier que le chargement a eu lieu |
-| **[Gestionnaires compatibles](docs/gestionnaires.md)** | Lesquels chargent les plugins, lesquels non, et le test de deux minutes qui tranche pour n'importe quel autre |
-| **[Paquets](release/)** | `AsaQoL-1.1.zip` (installation), `AsaQoL-1.1-maj.zip` (rechargement à chaud), `Installer-AsaQoL.ps1` |
+| **Installer** | [Français](docs/installation.md) · [English](docs/installation.en.md) — AsaApi, le plugin, le mod, et comment vérifier que le chargement a eu lieu |
+| **Gestionnaires compatibles** | [Français](docs/gestionnaires.md) · [English](docs/managers.en.md) — lesquels chargent les plugins, lesquels non, et le test de deux minutes qui tranche pour n'importe quel autre |
+| **[Télécharger](https://github.com/SensethO/ark-asa-qol/releases/latest)** | `AsaQoL-1.1.zip` (installation), `AsaQoL-1.1-maj.zip` (rechargement à chaud) |
+| **[Gestionnaire de serveur](https://github.com/SensethO/asa-manager)** | Interface web qui pilote ce plugin : profils, SteamCMD, RCON, mods, sauvegardes |
 
 **Le fait qui décide de tout** : le plugin n'est pas chargé par le gestionnaire,
 mais par AsaApi, à l'intérieur du processus du jeu. Il faut donc que le serveur
