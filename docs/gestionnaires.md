@@ -1,3 +1,5 @@
+***Français** · [English](managers.en.md)*
+
 # Quels gestionnaires de serveur peuvent charger AsaQoL
 
 AsaQoL est un plugin **AsaApi**. Il n'est pas chargé par le gestionnaire, mais
