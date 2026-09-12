@@ -7,7 +7,30 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\Ceiling.cpp" />
+    <ClCompile Include="src\Commands.cpp" />
+    <ClCompile Include="src\Config.cpp" />
+    <ClCompile Include="src\Inspect.cpp" />
+    <ClCompile Include="src\Items.cpp" />
+    <ClCompile Include="src\Link.cpp" />
     <ClCompile Include="src\Main.cpp" />
+    <ClCompile Include="src\Storage.cpp" />
+    <ClCompile Include="src\Window.cpp" />
+    <ClCompile Include="src\Util.cpp" />
+    <ClCompile Include="src\Weights.cpp" />
+    <ClCompile Include="src\WildLevels.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\Ceiling.h" />
+    <ClInclude Include="src\Commands.h" />
+    <ClInclude Include="src\Config.h" />
+    <ClInclude Include="src\Inspect.h" />
+    <ClInclude Include="src\Items.h" />
+    <ClInclude Include="src\Link.h" />
+    <ClInclude Include="src\Storage.h" />
+    <ClInclude Include="src\Window.h" />
+    <ClInclude Include="src\Util.h" />
+    <ClInclude Include="src\WildLevels.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="vcpkg.json" />
@@ -783,7 +806,7 @@
     <ProjectGuid>{63b1a909-5e3e-4fb4-b254-abe852c2c09d}</ProjectGuid>
     <RootNamespace>Plugin</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>PluginTemplate</ProjectName>
+    <ProjectName>AsaQoL</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">

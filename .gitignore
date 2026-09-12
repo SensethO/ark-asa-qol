@@ -400,3 +400,18 @@ FodyWeavers.xsd
 
 # vcpkg
 vcpkg_installed
+
+# --- AsaQoL ---------------------------------------------------------------
+# Le modele ignore [Rr]elease/ (sortie de compilation Visual Studio). Notre
+# dossier release/ porte l'installateur et la configuration par defaut : il
+# doit etre suivi. Le dossier doit etre re-inclus avant son contenu, sinon
+# git ne regarde meme pas dedans.
+!release/
+!release/**
+
+# Binaires et archives : distribues par les releases GitHub, pas par l'historique
+release/AsaQoL/AsaQoL.dll
+release/*.zip
+
+# fmt, clone a part (voir README, section Construction)
+extern/fmt/
