@@ -384,11 +384,12 @@ void ComposeDisplay(std::vector<WindowRow>& rows, const std::string& term, const
 		return rows;
 	}
 
-	bool SendToModWindow(AShooterPlayerController* viewer, const std::vector<WindowRow>& rows)
+	bool SendToModWindow(AShooterPlayerController* viewer, const std::vector<WindowRow>& rows,
+		const char* function_name)
 	{
 		// Le relais du joueur lui appartient deja : rien a reattribuer, et aucun
 		// risque de deposseder un autre joueur du sien.
-		if (AActor* link = LinkFor(viewer)) return SendWindowOn(link, rows);
+		if (AActor* link = LinkFor(viewer)) return SendWindowOn(link, rows, function_name);
 
 		AActor* singleton = GetModSingleton();
 		if (singleton == nullptr) return false;
@@ -399,13 +400,17 @@ void ComposeDisplay(std::vector<WindowRow>& rows, const std::string& term, const
 		// disparait des que le joueur dispose de son relais, qui lui appartient
 		// deja — voir Link.cpp.
 		singleton->SetOwner(viewer);
-		return SendWindowOn(singleton, rows);
+		return SendWindowOn(singleton, rows, function_name);
 	}
 
-	bool SendWindowOn(AActor* target, const std::vector<WindowRow>& rows)
+	bool SendWindowOn(AActor* target, const std::vector<WindowRow>& rows, const char* function_name)
 	{
 		AActor* singleton = target;
 		if (singleton == nullptr) return false;
+
+		const std::string nom = function_name != nullptr
+			? std::string(function_name)
+			: GetConfig().window.function_name;
 
 		ShowInventoryWindow_Params params;
 		params.Title = ToFString(GetConfig().window.title);
@@ -413,12 +418,16 @@ void ComposeDisplay(std::vector<WindowRow>& rows, const std::string& term, const
 
 		// FName ne dispose que du constructeur etroit dans AsaApi : la version
 		// large n'est pas exportee par la bibliotheque
-		const FName function_name(GetConfig().window.function_name.c_str());
+		const FName nom_moteur(nom.c_str());
 
 		// La signature Blueprint doit correspondre exactement au struct, champ par
 		// champ : un decalage provoque une corruption memoire, pas une erreur claire
-		UFunction* function = singleton->ClassField()->FindFunctionByName(function_name, EIncludeSuperFlag::IncludeSuper);
-		if (function == nullptr) return false;
+		UFunction* function = singleton->ClassField()->FindFunctionByName(nom_moteur, EIncludeSuperFlag::IncludeSuper);
+		if (function == nullptr)
+		{
+			Log::GetLog()->error("Evenement {} introuvable dans le mod : version d'interface trop ancienne ?", nom);
+			return false;
+		}
 
 		// Meme garde que le diagnostic : le moteur recopie `ParmsSize` octets depuis
 		// ce tampon. S'il en attend plus qu'il n'y en a, il lit au-dela et corrompt
@@ -427,7 +436,7 @@ void ComposeDisplay(std::vector<WindowRow>& rows, const std::string& term, const
 		if (header.coherent && header.parms_size > sizeof(ShowInventoryWindow_Params))
 		{
 			Log::GetLog()->error("Signature de {} desaccordee : le blueprint attend {} octets, le plugin en fournit {}",
-				GetConfig().window.function_name, header.parms_size, sizeof(ShowInventoryWindow_Params));
+				nom, header.parms_size, sizeof(ShowInventoryWindow_Params));
 			return false;
 		}
 
@@ -447,9 +456,11 @@ void ComposeDisplay(std::vector<WindowRow>& rows, const std::string& term, const
 		const std::vector<WindowRow> rows = BuildWindowRows(player, config.window.radius);
 		const bool owner = IsTribeOwner(player);
 
-		if (SendToModWindow(player, rows))
+		// Bascule cote client : le serveur envoie les lignes a jour dans tous les
+		// cas, le client ouvre ou referme selon ce qu'il affiche deja.
+		if (SendToModWindow(player, rows, kToggleFunction))
 		{
-			Log::GetLog()->info("Fenetre ouverte pour {} ({} lignes, chef={})",
+			Log::GetLog()->info("Bascule de la fenetre pour {} ({} lignes, chef={})",
 				ToUtf8(AsaApi::IApiUtils::GetCharacterName(player)), rows.size(), owner);
 			return;
 		}
