@@ -63,10 +63,24 @@ namespace QoL
 	 * \brief Envoie les lignes au mod pour affichage.
 	 * \return false si le mod n'est pas installe : l'appelant se rabat sur le chat.
 	 */
-	bool SendToModWindow(AShooterPlayerController* viewer, const std::vector<WindowRow>& rows);
+	bool SendToModWindow(AShooterPlayerController* viewer, const std::vector<WindowRow>& rows,
+		const char* function_name = nullptr);
 
 	/** Meme envoi, mais dirige vers un acteur precis : le relais du joueur */
-	bool SendWindowOn(AActor* target, const std::vector<WindowRow>& rows);
+	bool SendWindowOn(AActor* target, const std::vector<WindowRow>& rows,
+		const char* function_name = nullptr);
+
+	/**
+	 * rief L'evenement que `/inv` declenche : bascule, plutot qu'affichage.
+	 *
+	 * `ShowInventoryWindow` affiche ou rafraichit, et ne ferme jamais — c'est ce
+	 * qui a corrige le defaut ou chaque clic faisait disparaitre la fenetre.
+	 * Restait a rendre une sortie au joueur. Elle est confiee au client, seul a
+	 * savoir si sa fenetre est ouverte : le serveur n'a aucun moyen de
+	 * l'interroger, et tenir cet etat ici aurait exige une notification en
+	 * retour, donc une occasion de plus de se desynchroniser.
+	 */
+	constexpr const char* kToggleFunction = "Basculer";
 
 	/** Commande de chat ouvrant la fenetre, avec repli textuel */
 	void CmdInventoryWindow(AShooterPlayerController* player, FString* message, int, int);
