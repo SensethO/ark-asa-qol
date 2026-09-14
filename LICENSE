@@ -1,25 +1,5 @@
 Required Notice: Copyright Sylvain Cassaro (SensethO) — https://github.com/SensethO/ark-asa-qol
 
-Ce logiciel est distribue sous la PolyForm Noncommercial License 1.0.0, dont
-le texte integral suit. En resume, et sans se substituer a lui :
-
-  * tu peux l'utiliser, le modifier, le redistribuer et en tirer des oeuvres
-    derivees, pour tout usage NON COMMERCIAL ;
-  * la vente, et tout usage a but lucratif, ne sont pas permis ;
-  * la ligne « Required Notice » ci-dessus doit accompagner toute copie, ce
-    qui est la facon dont l'auteur reste nomme.
-
-This software is distributed under the PolyForm Noncommercial License 1.0.0,
-reproduced in full below. In short, without replacing it:
-
-  * you may use, modify, redistribute and build upon it for any NONCOMMERCIAL
-    purpose;
-  * selling it, or any commercial use, is not permitted;
-  * the "Required Notice" line above must travel with every copy — that is how
-    the author stays credited.
-
--------------------------------------------------------------------------------
-
 # PolyForm Noncommercial License 1.0.0
 
 <https://polyformproject.org/licenses/noncommercial/1.0.0>
@@ -154,18 +134,8 @@ of your licenses.
 
 
 -------------------------------------------------------------------------------
-PORTIONS SOUS UNE AUTRE LICENCE — PORTIONS UNDER A DIFFERENT LICENSE
+APPENDIX — PORTIONS UNDER THE MIT LICENSE
 -------------------------------------------------------------------------------
-
-Ce projet est parti d'un fork de MolluskARK/ASA-Plugin-Template, publie sous
-licence MIT. Six fichiers en proviennent encore inchanges. La licence MIT
-exige que sa mention soit conservee : elle continue donc de s'appliquer a ces
-portions, et les termes PolyForm ci-dessus ne s'y substituent pas.
-
-This project began as a fork of MolluskARK/ASA-Plugin-Template, published
-under the MIT License. Six files still come from it unchanged. MIT requires
-its notice to be preserved, so it continues to apply to those portions, and
-the PolyForm terms above do not override it.
 
     MIT License
 
@@ -188,6 +158,3 @@ the PolyForm terms above do not override it.
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
     DEALINGS IN THE SOFTWARE.
-
-AsaApi, contre laquelle ce plugin est construit, est egalement sous MIT et
-n'est pas redistribuee ici.
