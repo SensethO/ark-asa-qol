@@ -670,6 +670,8 @@ namespace QoL
 		commands.AddRconCommand("qol.inventory", GuardRcon("qol.inventory", &RconInventory));
 		commands.AddRconCommand("qol.structures", GuardRcon("qol.structures", &RconStructures));
 		commands.AddRconCommand("qol.containers", GuardRcon("qol.containers", &RconContainers));
+		commands.AddRconCommand("qol.stored", GuardRcon("qol.stored", &RconStored));
+		commands.AddRconCommand("qol.species", GuardRcon("qol.species", &RconSpecies));
 		commands.AddRconCommand("qol.dinos", GuardRcon("qol.dinos", &RconDinos));
 		commands.AddRconCommand("qol.deathcache", GuardRcon("qol.deathcache", &RconDeathCache));
 		commands.AddRconCommand("qol.wildlevels", GuardRcon("qol.wildlevels", &RconWildLevels));
@@ -695,6 +697,8 @@ namespace QoL
 		commands.RemoveRconCommand("qol.inventory");
 		commands.RemoveRconCommand("qol.structures");
 		commands.RemoveRconCommand("qol.containers");
+		commands.RemoveRconCommand("qol.stored");
+		commands.RemoveRconCommand("qol.species");
 		commands.RemoveRconCommand("qol.dinos");
 		commands.RemoveRconCommand("qol.deathcache");
 		commands.RemoveRconCommand("qol.wildlevels");

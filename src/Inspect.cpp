@@ -617,6 +617,402 @@ namespace QoL
 		Log::GetLog()->info("Contenants listes pour {} : {} non vides, {} objets", eos_id, matched, total_items);
 	}
 
+	/**
+	 * \brief Genetique d'un oeuf feconde, ou rien si l'objet n'en est pas un.
+	 *
+	 * Les points de niveau d'un oeuf sont sa valeur : ils sont deja tires, et
+	 * ce sont eux dont heritera la creature a l'eclosion. Les lire evite de
+	 * faire eclore pour savoir.
+	 */
+	bool DescribeEgg(UPrimalItem* item, const std::string& classe, nlohmann::json& entry)
+	{
+		// Le test porte sur le nom de classe : une comparaison de chaine ne
+		// peut pas lever, la ou la lecture d'un champ absent abat le serveur.
+		if (classe.find("Fertilized") == std::string::npos) return false;
+
+		static const char* kNoms[] = {"hp", "st", "to", "ox", "fo", "wa",
+		                              "te", "we", "me", "sp", "tf", "cr"};
+
+		nlohmann::json points = nlohmann::json::object();
+		nlohmann::json mutations = nlohmann::json::object();
+
+		auto niveaux = item->EggNumberOfLevelUpPointsAppliedField();
+		auto mutes = item->EggNumberMutationsAppliedField();
+
+		for (int i = 0; i < 12; ++i)
+		{
+			// `FieldArray` n'indexe pas : son operateur () rend le pointeur
+			const int n = static_cast<int>(niveaux()[i]);
+			const int m = static_cast<int>(mutes()[i]);
+			if (n > 0) points[kNoms[i]] = n;
+			if (m > 0) mutations[kNoms[i]] = m;
+		}
+
+		entry["kind"] = "egg";
+		entry["points"] = points;
+		entry["mutations"] = mutations;
+		return true;
+	}
+
+	/**
+	 * \brief Disposition des donnees d'un cryopode, sans rien en deduire.
+	 *
+	 * La creature est rangee dans `CustomItemDatas`. Son bloc d'octets est une
+	 * sauvegarde serialisee, hors de portee. Mais la structure porte aussi des
+	 * chaines, des flottants, des classes et des noms, tous typés — et c'est
+	 * la que doivent se trouver l'espece et le nom.
+	 *
+	 * On rapporte donc ce qu'on trouve, index par index, sans supposer lequel
+	 * porte quoi. Deviner les index est exactement ce qui a fait tomber le
+	 * serveur sur `AddedImprintingQuality`.
+	 */
+	bool DescribeCryopod(UPrimalItem* item, const std::string& classe, nlohmann::json& entry)
+	{
+		if (classe.find("SoulTrap") == std::string::npos
+			&& classe.find("Cryopod") == std::string::npos) return false;
+
+		entry["kind"] = "cryopod";
+
+		nlohmann::json blocs = nlohmann::json::array();
+		for (FCustomItemData& data : item->CustomItemDatasField())
+		{
+			nlohmann::json bloc;
+			bloc["name"] = ToUtf8(data.CustomDataNameField().ToString());
+
+			nlohmann::json chaines = nlohmann::json::array();
+			for (FString& v : data.CustomDataStringsField()) chaines.push_back(ToUtf8(v));
+			bloc["strings"] = chaines;
+
+			nlohmann::json flottants = nlohmann::json::array();
+			for (float v : data.CustomDataFloatsField()) flottants.push_back(v);
+			bloc["floats"] = flottants;
+
+			nlohmann::json classes = nlohmann::json::array();
+			for (UClass* c : data.CustomDataClassesField())
+			{
+				classes.push_back(c != nullptr ? ToUtf8(c->NameField().ToString()) : "");
+			}
+			bloc["classes"] = classes;
+
+			nlohmann::json noms = nlohmann::json::array();
+			for (FName& n : data.CustomDataNamesField()) noms.push_back(ToUtf8(n.ToString()));
+			bloc["names"] = noms;
+
+			blocs.push_back(bloc);
+		}
+		entry["data"] = blocs;
+		return true;
+	}
+
+	void RconStored(RCONClientConnection* connection, RCONPacket* packet, UWorld*)
+	{
+		TArray<FString> args;
+		packet->Body.ParseIntoArray(args, L" ", true);
+
+		if (args.Num() < 2)
+		{
+			ReplyError(connection, packet, "Usage : qol.stored <eosId> [rayon]");
+			return;
+		}
+
+		AShooterPlayerController* pc = FindByEos(ToUtf8(args[1]));
+		if (pc == nullptr)
+		{
+			ReplyError(connection, packet, "Joueur introuvable ou deconnecte");
+			return;
+		}
+
+		float radius = kDefaultRadius;
+		if (args.Num() > 2)
+		{
+			const float parsed = static_cast<float>(std::atof(ToUtf8(args[2]).c_str()));
+			if (parsed > 0.f) radius = parsed;
+		}
+
+		const FVector center = AsaApi::IApiUtils::GetPosition(pc);
+		const int tribe = AsaApi::IApiUtils::GetTribeID(pc);
+
+		nlohmann::json trouves = nlohmann::json::array();
+		int eggs = 0;
+		int pods = 0;
+		bool truncated = false;
+
+		const auto fouiller = [&](AActor* actor, UPrimalInventoryComponent* inventory, const char* ou)
+		{
+			if (inventory == nullptr) return;
+
+			for (UPrimalItem* item : inventory->InventoryItemsField())
+			{
+				if (item == nullptr) continue;
+				if (trouves.size() >= kMaxContainers) { truncated = true; return; }
+
+				try
+				{
+					const std::string classe =
+						ToUtf8(AsaApi::IApiUtils::GetItemBlueprint(item));
+
+					nlohmann::json entry;
+					const bool oeuf = DescribeEgg(item, classe, entry);
+					const bool pod = !oeuf && DescribeCryopod(item, classe, entry);
+					if (!oeuf && !pod) continue;
+
+					if (oeuf) eggs++; else pods++;
+
+					entry["item"] = ShortName(classe);
+					entry["label"] = ToUtf8(item->DescriptiveNameBaseField());
+					entry["custom"] = ToUtf8(item->CustomItemNameField());
+					entry["where"] = ou;
+					if (actor != nullptr)
+					{
+						entry["container"] =
+							ShortName(ToUtf8(AsaApi::IApiUtils::GetBlueprint(actor)));
+						AddPosition(entry, ActorPosition(actor));
+					}
+
+					trouves.push_back(entry);
+				}
+				catch (const std::exception& error)
+				{
+					// Un objet illisible ne doit pas emporter le recensement
+					Log::GetLog()->error("qol.stored : objet ignore ({})", error.what());
+				}
+			}
+		};
+
+		// L'inventaire du joueur lui-meme : c'est la qu'on porte ses cryopodes
+		if (AShooterCharacter* perso = PlayerCharacter(pc))
+		{
+			fouiller(nullptr, perso->MyInventoryComponentField(), "joueur");
+		}
+
+		for (AActor* actor :
+			AsaApi::GetApiUtils().GetAllActorsInRange(center, radius, EServerOctreeGroup::STRUCTURES))
+		{
+			if (actor == nullptr || actor->TargetingTeamField() != tribe) continue;
+			if (!IsContainerClass(actor->ClassPrivateField())) continue;
+
+			fouiller(actor, static_cast<APrimalStructureItemContainer*>(actor)->MyInventoryComponentField(),
+				"structure");
+		}
+
+		for (AActor* actor :
+			AsaApi::GetApiUtils().GetAllActorsInRange(center, radius, EServerOctreeGroup::DINOPAWNS_TAMED))
+		{
+			if (actor == nullptr || actor->TargetingTeamField() != tribe) continue;
+
+			fouiller(actor, static_cast<APrimalDinoCharacter*>(actor)->MyInventoryComponentField(),
+				"creature");
+		}
+
+		nlohmann::json payload{
+			{"radius", radius},
+			{"eggs", eggs},
+			{"cryopods", pods},
+			{"truncated", truncated},
+			{"found", trouves},
+		};
+		AddPosition(payload["center"], center);
+		Reply(connection, packet, payload);
+	}
+
+	void RconSpecies(RCONClientConnection* connection, RCONPacket* packet, UWorld*)
+	{
+		TArray<FString> args;
+		packet->Body.ParseIntoArray(args, L" ", true);
+
+		if (args.Num() < 2)
+		{
+			ReplyError(connection, packet, "Usage : qol.species <ClasseDeCreature>");
+			return;
+		}
+
+		// `qol.species live <eosId> [rayon]` : les coefficients lus sur des betes
+		// VIVANTES. L'objet par defaut d'une classe n'a pas de composant de
+		// statut — mesure, pas suppose — mais un acteur en a forcement un.
+		if (ToUtf8(args[1]) == "live")
+		{
+			if (args.Num() < 3)
+			{
+				ReplyError(connection, packet, "Usage : qol.species live <eosId> [rayon]");
+				return;
+			}
+
+			AShooterPlayerController* pc = FindByEos(ToUtf8(args[2]));
+			if (pc == nullptr)
+			{
+				ReplyError(connection, packet, "Joueur introuvable ou deconnecte");
+				return;
+			}
+
+			float rayon = kDefaultRadius;
+			if (args.Num() > 3)
+			{
+				const float lu = static_cast<float>(std::atof(ToUtf8(args[3]).c_str()));
+				if (lu > 0.f) rayon = lu;
+			}
+
+			static const char* kNoms[] = {"hp", "st", "to", "ox", "fo", "wa",
+			                              "te", "we", "me", "sp", "tf", "cr"};
+
+			nlohmann::json especes = nlohmann::json::object();
+			const FVector centre = AsaApi::IApiUtils::GetPosition(pc);
+
+			for (AActor* actor : AsaApi::GetApiUtils().GetAllActorsInRange(
+				     centre, rayon, EServerOctreeGroup::DINOPAWNS_TAMED))
+			{
+				if (actor == nullptr) continue;
+				auto* dino = static_cast<APrimalDinoCharacter*>(actor);
+
+				const std::string classe =
+					ToUtf8(actor->ClassPrivateField()->NameField().ToString());
+				// Une espece par entree : deux exemplaires n'apprennent rien de plus
+				if (especes.contains(classe)) continue;
+
+				UPrimalCharacterStatusComponent* statut = dino->MyCharacterStatusComponentField();
+				if (statut == nullptr) continue;
+
+				nlohmann::json e;
+				e["level"] = static_cast<int>(statut->BaseCharacterLevelField())
+					+ static_cast<int>(statut->ExtraCharacterLevelField());
+				e["baseLevel"] = static_cast<int>(statut->BaseCharacterLevelField());
+				e["extraLevel"] = static_cast<int>(statut->ExtraCharacterLevelField());
+
+				auto points = statut->NumberOfLevelUpPointsAppliedField();
+				auto points_tames = statut->NumberOfLevelUpPointsAppliedTamedField();
+				auto maxima = statut->MaxStatusValuesField();
+				auto par_niveau = statut->AmountMaxGainedPerLevelUpValueField();
+
+				nlohmann::json pw = nlohmann::json::object();
+				nlohmann::json pt = nlohmann::json::object();
+				nlohmann::json mv = nlohmann::json::object();
+				nlohmann::json inc = nlohmann::json::object();
+				int somme = 0;
+
+				for (int i = 0; i < 12; ++i)
+				{
+					const int n = static_cast<int>(points()[i]);
+					const int t = static_cast<int>(points_tames()[i]);
+					somme += n;
+					if (n > 0) pw[kNoms[i]] = n;
+					// Une statistique montee apres apprivoisement ne peut plus
+					// servir d'etalon : sa valeur inclut ces montees, et la base
+					// qu'on en tirerait serait fausse. Le dire permet d'ecarter
+					// la STATISTIQUE seule, au lieu de la bete entiere.
+					if (t > 0) pt[kNoms[i]] = t;
+					mv[kNoms[i]] = maxima()[i];
+					inc[kNoms[i]] = par_niveau()[i];
+				}
+
+				e["wildPointsSum"] = somme;
+				e["wildPoints"] = pw;
+				e["tamedPoints"] = pt;
+				e["maxValues"] = mv;
+				e["perWildLevel"] = inc;
+
+				especes[classe] = e;
+			}
+
+			Reply(connection, packet, nlohmann::json{{"radius", rayon}, {"species", especes}});
+			return;
+		}
+
+		// Les donnees d'un cryopode nomment la creature « Argent_Character_BP_C_2146995208 » :
+		// le suffixe est l'identifiant d'instance, pas la classe.
+		std::string voulu = ToUtf8(args[1]);
+		const size_t tiret = voulu.find_last_of('_');
+		if (tiret != std::string::npos
+			&& voulu.find_first_not_of("0123456789", tiret + 1) == std::string::npos)
+		{
+			voulu = voulu.substr(0, tiret);
+		}
+
+		nlohmann::json payload{{"wanted", voulu}};
+
+		// Chaque etape est journalisee AVANT d'etre tentee : si le serveur
+		// tombe, la derniere ligne ecrite designe l'appel fautif. C'est ce qui
+		// a manque aux deux plantages du catalogue.
+		try
+		{
+			Log::GetLog()->info("Especes : classe de base");
+			UClass* base = APrimalDinoCharacter::StaticClass();
+			if (base == nullptr)
+			{
+				ReplyError(connection, packet, "Classe de base introuvable");
+				return;
+			}
+
+			Log::GetLog()->info("Especes : enumeration des classes derivees");
+			TArray<UClass*> derivees;
+			NativeCall<void, const UClass*, TArray<UClass*>*, bool>(
+				nullptr,
+				"Global.GetDerivedClasses(UClass*,TArray<UClass*,TSizedDefaultAllocator<32>>&,bool)",
+				base, &derivees, true);
+
+			payload["derived"] = derivees.Num();
+			Log::GetLog()->info("Especes : {} classes derivees", derivees.Num());
+
+			UClass* trouvee = nullptr;
+			for (int i = 0; i < derivees.Num(); ++i)
+			{
+				UClass* c = derivees[i];
+				if (c == nullptr) continue;
+				if (ToUtf8(c->NameField().ToString()) == voulu) { trouvee = c; break; }
+			}
+
+			payload["found"] = trouvee != nullptr;
+			if (trouvee == nullptr)
+			{
+				// Une classe non chargee est absente de la hierarchie : c'est
+				// une information, pas une erreur.
+				Reply(connection, packet, payload);
+				return;
+			}
+
+			Log::GetLog()->info("Especes : objet par defaut");
+			UObject* cdo = trouvee->ClassDefaultObjectField();
+			payload["defaultObject"] = cdo != nullptr;
+			if (cdo == nullptr) { Reply(connection, packet, payload); return; }
+
+			Log::GetLog()->info("Especes : composant de statut de l'objet par defaut");
+			auto* dino = static_cast<APrimalDinoCharacter*>(cdo);
+			UPrimalCharacterStatusComponent* statut = dino->MyCharacterStatusComponentField();
+
+			// C'est le point incertain : un composant est instancie par acteur.
+			payload["statusComponent"] = statut != nullptr;
+			if (statut == nullptr) { Reply(connection, packet, payload); return; }
+
+			Log::GetLog()->info("Especes : lecture des coefficients");
+			static const char* kNoms[] = {"hp", "st", "to", "ox", "fo", "wa",
+			                              "te", "we", "me", "sp", "tf", "cr"};
+
+			auto bases = statut->MaxStatusValuesField();
+			auto par_niveau = statut->AmountMaxGainedPerLevelUpValueField();
+			auto par_niveau_tame = statut->AmountMaxGainedPerLevelUpValueTamedField();
+
+			nlohmann::json b = nlohmann::json::object();
+			nlohmann::json i_sauvage = nlohmann::json::object();
+			nlohmann::json i_tame = nlohmann::json::object();
+
+			for (int i = 0; i < 12; ++i)
+			{
+				b[kNoms[i]] = bases()[i];
+				i_sauvage[kNoms[i]] = par_niveau()[i];
+				i_tame[kNoms[i]] = par_niveau_tame()[i];
+			}
+
+			payload["base"] = b;
+			payload["perWildLevel"] = i_sauvage;
+			payload["perTamedLevel"] = i_tame;
+		}
+		catch (const std::exception& error)
+		{
+			payload["error"] = error.what();
+			Log::GetLog()->error("Especes : {}", error.what());
+		}
+
+		Reply(connection, packet, payload);
+	}
+
 	void RconStructures(RCONClientConnection* connection, RCONPacket* packet, UWorld*)
 	{
 		TArray<FString> args;
