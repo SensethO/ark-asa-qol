@@ -21,6 +21,27 @@ Exemple :
 qol.dinogroup 0002bc37754f47b79091aa689acadbed 1 stay
 ```
 
+### `qol.give` : niveaux de qualité
+
+`qol.give <eosId> <blueprint> [quantité] [qualité] [bp]` : le paramètre **qualité** est l'indice du niveau de l'objet.
+
+| Valeur | Niveau |
+|---|---|
+| `0` | Par défaut |
+| `1` | Ramshackle |
+| `2` | Apprentice |
+| `3` | Journeyman |
+| `4` | Mastercraft |
+| `5` | **Ascendant** (confirmé en jeu) |
+
+Seul le niveau `5` a été vérifié en jeu ; les noms de `1` à `4` suivent l'ordre habituel d'ARK. Le dernier paramètre (`bp`) vaut `1` pour donner le plan de l'objet plutôt que l'objet.
+
+Exemple : une arbalète Ascendante, en un exemplaire.
+
+```
+qol.give 0002bc37754f47b79091aa689acadbed Blueprint'/Game/PrimalEarth/CoreBlueprints/Weapons/PrimalItem_WeaponCrossbow.PrimalItem_WeaponCrossbow' 1 5 0
+```
+
 ### Compatibilité
 
 - AsaApi 1.19 ou plus récent, comme la 1.3. Aucun changement de `config.json`.
@@ -48,6 +69,7 @@ New RCON command **`qol.dinogroup`**: give an order to a tame group from the in-
 - `qol.dinogroup <eosId> list` lists the 10 groups and the selected one.
 - `qol.dinogroup <eosId> <1-10|all> <follow|stay|aggressive|passive|neutral|passiveflee|attack>` selects the group and issues the order, like the in-game whistle: range and group filtering are the game's own.
 - Get the `eosId` from `qol.players`. The player must be online with a living character.
+- `qol.give <eosId> <blueprint> [quantity] [quality] [bp]`: quality is the tier index, `0` default, `1` Ramshackle, `2` Apprentice, `3` Journeyman, `4` Mastercraft, `5` Ascendant (only `5` confirmed in game). `bp=1` gives the blueprint.
 - Needs AsaApi 1.19+. No config change. Built with MSVC `v145`.
 - Tested on a test server: `stay` and `follow` confirmed in game; the other orders and `all` were not individually tested.
 - Install with `AsaQoL-1.4.zip`; hot-update a running server with `AsaQoL-1.4-maj.zip`.
