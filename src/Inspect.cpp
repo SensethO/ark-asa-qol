@@ -1332,4 +1332,117 @@ namespace QoL
 		Log::GetLog()->info("Mode creatif : etat={} mode={}",
 			state->bShowCreativeModeField(), mode != nullptr ? mode->bShowCreativeModeField() : false);
 	}
+	/**
+	 * rief `qol.dinogroup <eosId> list` ou `qol.dinogroup <eosId> <groupe|all> <ordre>`.
+	 *
+	 * Reproduit le menu T : choisir un groupe de creatures puis leur donner un
+	 * ordre. Plutot que de re-parcourir les creatures nous-memes, on rejoue ce
+	 * que fait le jeu quand le joueur siffle : on selectionne le groupe sur son
+	 * PlayerState (`ServerSetSelectedDinoOrderGroup`), puis on declenche l'ordre
+	 * sur son personnage (`ServerCall*_Implementation`). La portee de l'ordre
+	 * (`TamedDinoCallOutRange`) et le filtrage par groupe restent ceux du jeu.
+	 *
+	 * Groupes numerotes de 1 a 10 comme dans l'interface ; `all` retire le filtre.
+	 * Ordres : follow, stay, aggressive, passive, neutral, passiveflee, attack.
+	 *
+	 * A VERIFIER EN JEU : l'appel direct des `_Implementation` depuis le serveur,
+	 * et la valeur interne de "aucun groupe" (supposee -1).
+	 */
+	void RconDinoGroup(RCONClientConnection* connection, RCONPacket* packet, UWorld*)
+	{
+		TArray<FString> args;
+		packet->Body.ParseIntoArray(args, L" ", true);
+
+		if (args.Num() < 3)
+		{
+			ReplyError(connection, packet,
+				"Usage : qol.dinogroup <eosId> list | <groupe 1-10|all> <follow|stay|aggressive|passive|neutral|passiveflee|attack>");
+			return;
+		}
+
+		const std::string eos_id = ToUtf8(args[1]);
+		AShooterPlayerController* pc = FindByEos(eos_id);
+		if (pc == nullptr)
+		{
+			ReplyError(connection, packet, "Joueur introuvable ou deconnecte");
+			return;
+		}
+
+		auto* state = static_cast<AShooterPlayerState*>(pc->PlayerStateField().Get());
+		if (state == nullptr)
+		{
+			ReplyError(connection, packet, "Etat du joueur indisponible");
+			return;
+		}
+
+		const std::string what = ToUtf8(args[2]);
+
+		if (what == "list")
+		{
+			nlohmann::json groups = nlohmann::json::array();
+			auto fields = state->DinoOrderGroupsField();
+			for (int i = 0; i < 10; ++i)
+			{
+				FDinoOrderGroup& group = fields()[i];
+				groups.push_back({{"group", i + 1}, {"name", ToUtf8(group.DinoOrderGroupNameField())}});
+			}
+			Reply(connection, packet,
+				nlohmann::json{{"eosId", eos_id},
+				               {"selected", state->CurrentlySelectedDinoOrderGroupField()},
+				               {"groups", groups}});
+			return;
+		}
+
+		if (args.Num() < 4)
+		{
+			ReplyError(connection, packet, "Ordre manquant (follow, stay, aggressive, passive, neutral, passiveflee, attack)");
+			return;
+		}
+
+		int group = -1;
+		if (what != "all")
+		{
+			group = std::atoi(what.c_str()) - 1;
+			if (group < 0 || group > 9)
+			{
+				ReplyError(connection, packet, "Groupe invalide : 1 a 10, ou all");
+				return;
+			}
+		}
+
+		AShooterCharacter* character = pc->GetPlayerCharacter();
+		if (character == nullptr)
+		{
+			ReplyError(connection, packet, "Personnage mort ou absent : aucun ordre possible");
+			return;
+		}
+
+		const std::string order = ToUtf8(args[3]);
+		const int previous = state->CurrentlySelectedDinoOrderGroupField();
+
+		state->ServerSetSelectedDinoOrderGroup_Implementation(group);
+
+		if (order == "follow") character->ServerCallFollow_Implementation();
+		else if (order == "stay") character->ServerCallStay_Implementation();
+		else if (order == "aggressive") character->ServerCallAggressive_Implementation();
+		else if (order == "passive") character->ServerCallPassive_Implementation();
+		else if (order == "neutral") character->ServerCallNeutral_Implementation();
+		else if (order == "passiveflee") character->ServerCallPassiveFlee_Implementation();
+		else if (order == "attack") character->ServerCallAttackTargetNew_Implementation();
+		else
+		{
+			state->ServerSetSelectedDinoOrderGroup_Implementation(previous);
+			ReplyError(connection, packet, "Ordre inconnu : " + order);
+			return;
+		}
+
+		Reply(connection, packet,
+			nlohmann::json{{"eosId", eos_id},
+			               {"group", what},
+			               {"order", order},
+			               {"previousSelection", previous},
+			               {"selected", state->CurrentlySelectedDinoOrderGroupField()}});
+
+		Log::GetLog()->info("Ordre de groupe pour {} : {} -> {}", eos_id, what, order);
+	}
 } // namespace QoL

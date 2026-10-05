@@ -101,6 +101,9 @@ namespace QoL
 	 */
 	void RconDeathCache(RCONClientConnection* connection, RCONPacket* packet, UWorld* world);
 
+	/** `qol.dinogroup` : groupes de creatures du menu T (choix du groupe + ordre) */
+	void RconDinoGroup(RCONClientConnection* connection, RCONPacket* packet, UWorld* world);
+
 	/**
 	 * rief `qol.gamemode` — valeurs reellement actives sur le mode de jeu.
 	 *

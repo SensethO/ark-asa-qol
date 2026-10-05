@@ -674,6 +674,7 @@ namespace QoL
 		commands.AddRconCommand("qol.species", GuardRcon("qol.species", &RconSpecies));
 		commands.AddRconCommand("qol.dinos", GuardRcon("qol.dinos", &RconDinos));
 		commands.AddRconCommand("qol.deathcache", GuardRcon("qol.deathcache", &RconDeathCache));
+		commands.AddRconCommand("qol.dinogroup", GuardRcon("qol.dinogroup", &RconDinoGroup));
 		commands.AddRconCommand("qol.wildlevels", GuardRcon("qol.wildlevels", &RconWildLevels));
 		commands.AddRconCommand("qol.windowtest", GuardRcon("qol.windowtest", &RconWindowTest));
 		commands.AddRconCommand("qol.items", GuardRcon("qol.items", &RconItems));
