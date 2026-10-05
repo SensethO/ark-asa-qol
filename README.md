@@ -59,6 +59,7 @@ Les noms de points peuvent contenir des espaces (`/sethome ma base nord`).
 | `qol.containers <eosId> [rayon]` | JSON : coffres, structures à inventaire et montures de la tribu, avec contenu et coordonnées |
 | `qol.dinos [filter=…] [species=…] [minlevel=…] [radius=…] [offset=…] [limit=…]` | JSON : recensement des créatures — espèce, statut, niveau, sexe, tribu, coordonnées |
 | `qol.structures <eosId> [rayon]` | JSON : constructions de la tribu autour du joueur, avec coordonnées |
+| `qol.dinogroup <eosId> list` ou `<eosId> <groupe 1-10\|all> <ordre>` | Groupes de créatures du menu T : liste les groupes, ou sélectionne un groupe et lui donne un ordre (`follow`, `stay`, `aggressive`, `passive`, `neutral`, `passiveflee`, `attack`) |
 | `qol.wildlevels [reload] [simulate=N]` | JSON : niveaux imposés aux créatures sauvages ; `reload` relit `config.json` sans redémarrer, `simulate` tire N niveaux à blanc et renvoie leur répartition par tranche de 10 |
 
 Les trois commandes d'inspection existent parce que le RCON natif d'ARK ne sait, seul, que lister les noms des joueurs : ni position, ni inventaire, ni construction.
