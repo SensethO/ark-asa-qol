@@ -1678,7 +1678,7 @@ namespace QoL
 
 		if (args.Num() < 4)
 		{
-			ReplyError(connection, packet, "Ordre manquant (follow, stay, aggressive, passive, neutral, passiveflee, attack)");
+			ReplyError(connection, packet, "Ordre manquant (follow, stay, aggressive, passive, neutral, passiveflee, attack, land)");
 			return;
 		}
 
@@ -1712,6 +1712,25 @@ namespace QoL
 		else if (order == "neutral") character->ServerCallNeutral_Implementation();
 		else if (order == "passiveflee") character->ServerCallPassiveFlee_Implementation();
 		else if (order == "attack") character->ServerCallAttackTargetNew_Implementation();
+		else if (order == "land")
+		{
+			// Atterrir : le jeu n'a pas d'ordre de groupe pour cela (touche CallLandOne = une creature visee). On l'envoie donc a
+			// chaque creature de la tribu qui fait partie du groupe choisi (ou a toutes avec « all »).
+			const int tribe = AsaApi::IApiUtils::GetTribeID(pc);
+			const FVector origin{0, 0, 0};
+			TArray<AActor*> actors =
+				AsaApi::GetApiUtils().GetAllActorsInRange(origin, 1000000.f, EServerOctreeGroup::DINOPAWNS_TAMED);
+			int envoyes = 0;
+			for (AActor* actor : actors)
+			{
+				if (actor == nullptr || actor->TargetingTeamField() != tribe) continue;
+				auto* dino = static_cast<APrimalDinoCharacter*>(actor);
+				if (group >= 0 && !state->IsDinoInOrderGroup(group, dino)) continue;
+				character->ServerCallLandFlyerOne_Implementation(dino);
+				++envoyes;
+			}
+			Log::GetLog()->info("Atterrissage demande a {} creature(s)", envoyes);
+		}
 		else
 		{
 			state->ServerSetSelectedDinoOrderGroup_Implementation(previous);
