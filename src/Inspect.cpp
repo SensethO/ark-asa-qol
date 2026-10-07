@@ -1381,12 +1381,8 @@ namespace QoL
 		if (what == "list")
 		{
 			nlohmann::json groups = nlohmann::json::array();
-			auto fields = state->DinoOrderGroupsField();
-			for (int i = 0; i < 10; ++i)
-			{
-				FDinoOrderGroup& group = fields()[i];
-				groups.push_back({{"group", i + 1}, {"name", ToUtf8(group.DinoOrderGroupNameField())}});
-			}
+			// Les noms ne sont pas lus : indexer DinoOrderGroupsField() plante (FDinoOrderGroup mesure 1 octet dans les en-tetes)
+			for (int i = 0; i < 10; ++i) groups.push_back({{"group", i + 1}, {"name", "Group " + std::to_string(i + 1)}});
 			Reply(connection, packet,
 				nlohmann::json{{"eosId", eos_id},
 				               {"selected", state->CurrentlySelectedDinoOrderGroupField()},
@@ -1425,14 +1421,15 @@ namespace QoL
 			}
 
 			nlohmann::json groups = nlohmann::json::array();
-			auto fields = state->DinoOrderGroupsField();
+			// ATTENTION : ne jamais indexer `DinoOrderGroupsField()` (fields()[i]) : FDinoOrderGroup est declare sans membre dans
+			// les en-tetes, sa taille vaut 1 octet et tout indice au-dela de 0 pointe en memoire invalide (plantage constate).
+			// Les noms de groupes ne sont donc pas lus ; les especes viennent de IsDinoClassInOrderGroup, appele par le jeu.
 			for (int i = 0; i < 10; ++i)
 			{
-				FDinoOrderGroup& g = fields()[i];
 				nlohmann::json especes = nlohmann::json::array();
 				for (const auto& [nom, entree] : presentes)
 					if (state->IsDinoClassInOrderGroup(i, TSubclassOf<APrimalDinoCharacter>(entree.first))) especes.push_back(nom);
-				groups.push_back({{"group", i + 1}, {"name", ToUtf8(g.DinoOrderGroupNameField())}, {"species", especes}});
+				groups.push_back({{"group", i + 1}, {"name", "Group " + std::to_string(i + 1)}, {"species", especes}});
 			}
 			nlohmann::json available = nlohmann::json::array();
 			for (const auto& [nom, entree] : presentes) available.push_back({{"s", nom}, {"n", entree.second}});
