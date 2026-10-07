@@ -1428,8 +1428,23 @@ namespace QoL
 				}
 				groups.push_back({{"group", i + 1}, {"name", ToUtf8(g.DinoOrderGroupNameField())}, {"species", especes}});
 			}
+			// Especes presentes dans la tribu (avec leur nombre) : ce sont celles qu'on peut ajouter a un groupe
+			const int tribe = AsaApi::IApiUtils::GetTribeID(pc);
+			const FVector origin{0, 0, 0};
+			TArray<AActor*> actors =
+				AsaApi::GetApiUtils().GetAllActorsInRange(origin, 1000000.f, EServerOctreeGroup::DINOPAWNS_TAMED);
+			std::map<std::string, int> presentes;
+			for (AActor* actor : actors)
+			{
+				if (actor == nullptr || actor->TargetingTeamField() != tribe) continue;
+				const std::string nom = ToUtf8(static_cast<APrimalDinoCharacter*>(actor)->DescriptiveNameField());
+				if (!nom.empty()) presentes[nom]++;
+			}
+			nlohmann::json available = nlohmann::json::array();
+			for (const auto& [nom, nombre] : presentes) available.push_back({{"s", nom}, {"n", nombre}});
+
 			Reply(connection, packet,
-				nlohmann::json{{"eosId", eos_id}, {"selected", state->CurrentlySelectedDinoOrderGroupField()}, {"groups", groups}});
+				nlohmann::json{{"eosId", eos_id}, {"selected", state->CurrentlySelectedDinoOrderGroupField()}, {"groups", groups}, {"available", available}});
 			return;
 		}
 
