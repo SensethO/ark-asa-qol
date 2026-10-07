@@ -150,16 +150,6 @@ namespace QoL
 			return AsaApi::GetApiUtils().FindPlayerFromEOSID(ToFString(eos_id));
 		}
 
-		/** Nom d'espece d'une classe de creature (nom descriptif de son objet par defaut) ; vide si introuvable */
-		std::string SpeciesOfClass(UClass* cls)
-		{
-			if (cls == nullptr) return {};
-
-			UObject* defaults = cls->ClassDefaultObjectField();
-			if (defaults == nullptr) return {};
-
-			return ToUtf8(static_cast<APrimalDinoCharacter*>(defaults)->DescriptiveNameField());
-		}
 
 		/** Serialise un objet deja categorise */
 		nlohmann::json DescribeItem(UPrimalItem* item, bool& is_engram, bool& is_skin)
@@ -1415,33 +1405,37 @@ namespace QoL
 		// A VERIFIER EN JEU : les appels `_Implementation` ci-dessous (meme reserve que pour l'ordre).
 		if (what == "classes")
 		{
+			// Especes presentes dans la tribu : une classe par espece, prise sur une creature REELLE. On n'ouvre jamais
+			// le tableau interne des classes d'un groupe (sa lecture directe a fait tomber un serveur, 1.5 initiale) :
+			// c'est le jeu lui-meme qui repond « cette espece est-elle dans ce groupe ? ».
+			const int tribe = AsaApi::IApiUtils::GetTribeID(pc);
+			const FVector origin{0, 0, 0};
+			TArray<AActor*> actors =
+				AsaApi::GetApiUtils().GetAllActorsInRange(origin, 1000000.f, EServerOctreeGroup::DINOPAWNS_TAMED);
+			std::map<std::string, std::pair<UClass*, int>> presentes;
+			for (AActor* actor : actors)
+			{
+				if (actor == nullptr || actor->TargetingTeamField() != tribe) continue;
+				auto* dino = static_cast<APrimalDinoCharacter*>(actor);
+				const std::string nom = ToUtf8(dino->DescriptiveNameField());
+				if (nom.empty() || dino->ClassField() == nullptr) continue;
+				auto& entree = presentes[nom];
+				if (entree.first == nullptr) entree.first = dino->ClassField();
+				entree.second++;
+			}
+
 			nlohmann::json groups = nlohmann::json::array();
 			auto fields = state->DinoOrderGroupsField();
 			for (int i = 0; i < 10; ++i)
 			{
 				FDinoOrderGroup& g = fields()[i];
 				nlohmann::json especes = nlohmann::json::array();
-				for (const auto& cls : g.DinoOrderClassesField())
-				{
-					const std::string nom = SpeciesOfClass(cls.uClass);
-					if (!nom.empty()) especes.push_back(nom);
-				}
+				for (const auto& [nom, entree] : presentes)
+					if (state->IsDinoClassInOrderGroup(i, TSubclassOf<APrimalDinoCharacter>(entree.first))) especes.push_back(nom);
 				groups.push_back({{"group", i + 1}, {"name", ToUtf8(g.DinoOrderGroupNameField())}, {"species", especes}});
 			}
-			// Especes presentes dans la tribu (avec leur nombre) : ce sont celles qu'on peut ajouter a un groupe
-			const int tribe = AsaApi::IApiUtils::GetTribeID(pc);
-			const FVector origin{0, 0, 0};
-			TArray<AActor*> actors =
-				AsaApi::GetApiUtils().GetAllActorsInRange(origin, 1000000.f, EServerOctreeGroup::DINOPAWNS_TAMED);
-			std::map<std::string, int> presentes;
-			for (AActor* actor : actors)
-			{
-				if (actor == nullptr || actor->TargetingTeamField() != tribe) continue;
-				const std::string nom = ToUtf8(static_cast<APrimalDinoCharacter*>(actor)->DescriptiveNameField());
-				if (!nom.empty()) presentes[nom]++;
-			}
 			nlohmann::json available = nlohmann::json::array();
-			for (const auto& [nom, nombre] : presentes) available.push_back({{"s", nom}, {"n", nombre}});
+			for (const auto& [nom, entree] : presentes) available.push_back({{"s", nom}, {"n", entree.second}});
 
 			Reply(connection, packet,
 				nlohmann::json{{"eosId", eos_id}, {"selected", state->CurrentlySelectedDinoOrderGroupField()}, {"groups", groups}, {"available", available}});
