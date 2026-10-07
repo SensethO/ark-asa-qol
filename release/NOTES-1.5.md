@@ -15,9 +15,11 @@
 - L'espèce se donne par son nom (celui de `qol.dinos`, par exemple `Baryonyx`) et doit exister au moins une fois dans la tribu du joueur : la classe est retrouvée sur une créature réelle.
 - Groupe de `1` à `10`, comme dans l'interface.
 
-### Limite constatée en essai
+### Correctif 1.5.1 : les groupes reflètent bien la partie en jeu
 
-Les groupes du menu T sont **tenus par le client** du joueur. Ces commandes lisent et modifient l'état côté **serveur**, qui ne reflète pas les groupes définis dans le jeu : un groupe peuplé en jeu peut apparaître vide ici, et `setclass` ne change pas ce que le joueur voit. Seule la liste `available` de `classes` (espèces présentes dans la tribu) est fiable ; un essai de rafraîchissement du client (`ClientRefreshDinoOrderGroup`) n'a pas abouti et n'est pas inclus. Le plugin Stream Deck tient donc sa propre liste de groupes et n'utilise de ce mod que `classes` (`available`) et `qol.dinos`.
+Une première version relisait toujours des groupes vides. Cause : le jeu reçoit la classe d'une espèce **par adresse** (TSubclassOf), alors que les en-têtes d'AsaApi la déclarent par valeur ; les appels natifs passaient donc une valeur sans rapport. Les appels passent maintenant l'adresse d'un TSubclassOf. Constaté sur le serveur de test : les groupes relus correspondent aux ajouts faits en jeu, et `setclass` met à jour le menu T du joueur.
+
+Nouveau : `qol.dinogroup <eosId> adddino|rmdino <groupe> <espece>|<nom>|<niveau d'origine>|<sexe 0/1>` ajoute ou retire une créature précise (le serveur n'expose pas d'identifiant : la créature est retrouvée par espèce, nom, niveau d'origine et sexe ; deux créatures identiques sont indiscernables).
 
 ### À vérifier en jeu
 

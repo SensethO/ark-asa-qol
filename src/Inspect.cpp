@@ -1349,6 +1349,24 @@ namespace QoL
 	 * A VERIFIER EN JEU : l'appel direct des `_Implementation` depuis le serveur,
 	 * et la valeur interne de "aucun groupe" (supposee -1).
 	 */
+	// ABI : le code du jeu recoit un TSubclassOf par adresse (la sonde l'a montre : l'argument est une adresse de pile,
+	// pas une UClass). Les en-tetes d'AsaApi le declarent par valeur, d'ou des lectures toujours fausses. On appelle donc
+	// les fonctions natives en passant l'adresse d'un TSubclassOf.
+	bool ClasseDansGroupe(AShooterPlayerState* state, int index, UClass* classe)
+	{
+		TSubclassOf<APrimalDinoCharacter> sous{classe};
+		return NativeCall<bool, int, TSubclassOf<APrimalDinoCharacter>*>(
+			state, "AShooterPlayerState.IsDinoClassInOrderGroup(int,TSubclassOf<APrimalDinoCharacter>)", index, &sous);
+	}
+
+	void AjouterOuRetirerClasse(AShooterPlayerState* state, int index, UClass* classe, bool ajout)
+	{
+		TSubclassOf<APrimalDinoCharacter> sous{classe};
+		NativeCall<void, int, TSubclassOf<APrimalDinoCharacter>*, bool>(
+			state, "AShooterPlayerState.ServerDinoOrderGroup_AddOrRemoveDinoClass_Implementation(int,TSubclassOf<APrimalDinoCharacter>,bool)",
+			index, &sous, ajout);
+	}
+
 	void RconDinoGroup(RCONClientConnection* connection, RCONPacket* packet, UWorld*)
 	{
 		TArray<FString> args;
@@ -1428,7 +1446,7 @@ namespace QoL
 			{
 				nlohmann::json especes = nlohmann::json::array();
 				for (const auto& [nom, entree] : presentes)
-					if (state->IsDinoClassInOrderGroup(i, TSubclassOf<APrimalDinoCharacter>(entree.first))) especes.push_back(nom);
+					if (ClasseDansGroupe(state, i, entree.first)) especes.push_back(nom);
 				groups.push_back({{"group", i + 1}, {"name", "Group " + std::to_string(i + 1)}, {"species", especes}});
 			}
 			nlohmann::json available = nlohmann::json::array();
@@ -1439,7 +1457,7 @@ namespace QoL
 			return;
 		}
 
-		if (what == "setclass" || what == "removeclass" || what == "clear" || what == "members")
+		if (what == "setclass" || what == "removeclass" || what == "clear" || what == "members" || what == "adddino" || what == "rmdino")
 		{
 			if (args.Num() < 4)
 			{
@@ -1509,6 +1527,52 @@ namespace QoL
 				return;
 			}
 
+			// adddino / rmdino <groupe> <espece>|<nom>|<niveau d'origine>|<sexe 0/1> : une creature precise, retrouvee dans la tribu
+			// (le serveur n'expose aucun identifiant : on combine espece, nom, niveau d'origine et sexe).
+			if (what == "adddino" || what == "rmdino")
+			{
+				std::string cle;
+				for (int i = 4; i < args.Num(); ++i) cle += (i > 4 ? " " : "") + ToUtf8(args[i]);
+				std::vector<std::string> champs;
+				for (size_t debut = 0;;)
+				{
+					const size_t fin = cle.find('|', debut);
+					champs.push_back(cle.substr(debut, fin == std::string::npos ? std::string::npos : fin - debut));
+					if (fin == std::string::npos) break;
+					debut = fin + 1;
+				}
+				if (champs.size() != 4)
+				{
+					ReplyError(connection, packet, "Cle attendue : espece|nom|niveau d'origine|sexe");
+					return;
+				}
+				const bool ajout = what == "adddino";
+				const int niveau = std::atoi(champs[2].c_str());
+				const bool femelle = champs[3] == "1";
+				APrimalDinoCharacter* cible = nullptr;
+				for (AActor* actor : actors)
+				{
+					if (actor == nullptr || actor->TargetingTeamField() != tribe) continue;
+					auto* dino = static_cast<APrimalDinoCharacter*>(actor);
+					if (Lowercase(ToUtf8(dino->DescriptiveNameField())) != Lowercase(champs[0])) continue;
+					if (ToUtf8(dino->TamedNameField()) != champs[1]) continue;
+					if (static_cast<bool>(dino->bIsFemale()()) != femelle) continue;
+					UPrimalCharacterStatusComponent* status = dino->MyCharacterStatusComponentField();
+					if (status == nullptr || status->BaseCharacterLevelField() != niveau) continue;
+					// ajout : une creature pas encore dans le groupe ; retrait : une qui y est (cas de creatures jumelles)
+					if (ajout != state->IsDinoInOrderGroup(index, dino)) { cible = dino; break; }
+				}
+				if (cible == nullptr)
+				{
+					ReplyError(connection, packet, ajout ? "Creature introuvable ou deja dans le groupe" : "Creature introuvable ou absente du groupe");
+					return;
+				}
+				state->ServerDinoOrderGroup_AddOrRemoveDinoCharacter_Implementation(index, cible, ajout);
+				Reply(connection, packet, nlohmann::json{{"eosId", eos_id}, {"group", index + 1}, {"action", what}, {"key", cle}});
+				Log::GetLog()->info("Groupe {} : {} {} pour {}", index + 1, what, cle, eos_id);
+				return;
+			}
+
 			// setclass / removeclass : l'espece est retrouvee sur une creature reelle de la tribu
 			// (on n'a donc pas a charger une classe par son chemin, ce qui serait plus risque)
 			std::string espece;
@@ -1536,8 +1600,7 @@ namespace QoL
 				return;
 			}
 
-			state->ServerDinoOrderGroup_AddOrRemoveDinoClass_Implementation(index, TSubclassOf<APrimalDinoCharacter>(classe),
-				what == "setclass");
+			AjouterOuRetirerClasse(state, index, classe, what == "setclass");
 			Reply(connection, packet,
 				nlohmann::json{{"eosId", eos_id}, {"group", index + 1}, {"species", espece}, {"action", what}});
 			Log::GetLog()->info("Groupe {} : {} {} pour {}", index + 1, what, espece, eos_id);
