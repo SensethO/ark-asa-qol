@@ -1367,6 +1367,47 @@ namespace QoL
 			index, &sous, ajout);
 	}
 
+	struct FStringBrut
+	{
+		const wchar_t* data;
+		int num;
+		int max;
+	};
+
+	/**
+	 * Lit le nom d'un groupe. FDinoOrderGroup est declare sans membre dans les en-tetes (taille 1) : on ne l'indexe JAMAIS,
+	 * on avance de la taille REELLE de la structure, lue dans sa description d'execution. Tout acces invalide est intercepte :
+	 * une lecture ratee rend « pas de nom », jamais un plantage.
+	 */
+	bool LireNomGroupe(AShooterPlayerState* state, int index, int taille, wchar_t* sortie, int capacite)
+	{
+		__try
+		{
+			char* base = reinterpret_cast<char*>(state->DinoOrderGroupsField()());
+			FDinoOrderGroup* groupe = reinterpret_cast<FDinoOrderGroup*>(base + static_cast<size_t>(index) * static_cast<size_t>(taille));
+			const FStringBrut* brut = reinterpret_cast<const FStringBrut*>(&groupe->DinoOrderGroupNameField());
+			sortie[0] = 0;
+			if (brut->data == nullptr || brut->num <= 1 || brut->num > capacite) return brut->num <= 1;
+			for (int i = 0; i < brut->num; ++i) sortie[i] = brut->data[i];
+			sortie[capacite - 1] = 0;
+			return true;
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER)
+		{
+			return false;
+		}
+	}
+
+	std::string VersUtf8(const wchar_t* texte)
+	{
+		const int n = WideCharToMultiByte(CP_UTF8, 0, texte, -1, nullptr, 0, nullptr, nullptr);
+		if (n <= 1) return {};
+		std::string sortie(static_cast<size_t>(n), '\0');
+		WideCharToMultiByte(CP_UTF8, 0, texte, -1, sortie.data(), n, nullptr, nullptr);
+		sortie.resize(static_cast<size_t>(n) - 1);
+		return sortie;
+	}
+
 	void RconDinoGroup(RCONClientConnection* connection, RCONPacket* packet, UWorld*)
 	{
 		TArray<FString> args;
@@ -1442,12 +1483,23 @@ namespace QoL
 			// ATTENTION : ne jamais indexer `DinoOrderGroupsField()` (fields()[i]) : FDinoOrderGroup est declare sans membre dans
 			// les en-tetes, sa taille vaut 1 octet et tout indice au-dela de 0 pointe en memoire invalide (plantage constate).
 			// Les noms de groupes ne sont donc pas lus ; les especes viennent de IsDinoClassInOrderGroup, appele par le jeu.
+			const int taille_groupe = GetStructSize<FDinoOrderGroup>();
 			for (int i = 0; i < 10; ++i)
 			{
 				nlohmann::json especes = nlohmann::json::array();
 				for (const auto& [nom, entree] : presentes)
 					if (ClasseDansGroupe(state, i, entree.first)) especes.push_back(nom);
-				groups.push_back({{"group", i + 1}, {"name", "Group " + std::to_string(i + 1)}, {"species", especes}});
+				std::string nom = "Group " + std::to_string(i + 1);
+				if (taille_groupe >= 24 && taille_groupe <= 1024)
+				{
+					wchar_t tampon[96];
+					if (LireNomGroupe(state, i, taille_groupe, tampon, 96))
+					{
+						const std::string lu = VersUtf8(tampon);
+						if (!lu.empty()) nom = lu;
+					}
+				}
+				groups.push_back({{"group", i + 1}, {"name", nom}, {"species", especes}});
 			}
 			nlohmann::json available = nlohmann::json::array();
 			for (const auto& [nom, entree] : presentes) available.push_back({{"s", nom}, {"n", entree.second}});
@@ -1457,7 +1509,7 @@ namespace QoL
 			return;
 		}
 
-		if (what == "setclass" || what == "removeclass" || what == "clear" || what == "members" || what == "adddino" || what == "rmdino")
+		if (what == "setclass" || what == "removeclass" || what == "clear" || what == "members" || what == "adddino" || what == "rmdino" || what == "rename")
 		{
 			if (args.Num() < 4)
 			{
@@ -1473,7 +1525,7 @@ namespace QoL
 
 			if (what == "clear")
 			{
-				state->ServerDinoOrderGroup_Clear_Implementation(index, true, false);
+				state->ServerDinoOrderGroup_Clear_Implementation(index, true, true);
 				Reply(connection, packet, nlohmann::json{{"eosId", eos_id}, {"group", index + 1}, {"cleared", true}});
 				Log::GetLog()->info("Groupe {} vide pour {}", index + 1, eos_id);
 				return;
@@ -1524,6 +1576,23 @@ namespace QoL
 				}
 				Reply(connection, packet,
 					nlohmann::json{{"eosId", eos_id}, {"group", index + 1}, {"count", dinos.size()}, {"dinos", dinos}});
+				return;
+			}
+
+			// rename <groupe> <nom> : renomme le groupe (le client l'affiche dans son menu T)
+			if (what == "rename")
+			{
+				std::string nom;
+				for (int i = 4; i < args.Num(); ++i) nom += (i > 4 ? " " : "") + ToUtf8(args[i]);
+				if (nom.empty() || nom.size() > 60)
+				{
+					ReplyError(connection, packet, "Nom attendu : 1 a 60 caracteres");
+					return;
+				}
+				FString fnom = ToFString(nom);
+				state->ServerSetDinoGroupName_Implementation(index, fnom);
+				Reply(connection, packet, nlohmann::json{{"eosId", eos_id}, {"group", index + 1}, {"name", nom}, {"action", "rename"}});
+				Log::GetLog()->info("Groupe {} renomme en {} pour {}", index + 1, nom, eos_id);
 				return;
 			}
 
