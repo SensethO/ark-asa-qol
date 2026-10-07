@@ -150,6 +150,17 @@ namespace QoL
 			return AsaApi::GetApiUtils().FindPlayerFromEOSID(ToFString(eos_id));
 		}
 
+		/** Nom d'espece d'une classe de creature (nom descriptif de son objet par defaut) ; vide si introuvable */
+		std::string SpeciesOfClass(UClass* cls)
+		{
+			if (cls == nullptr) return {};
+
+			UObject* defaults = cls->ClassDefaultObjectField();
+			if (defaults == nullptr) return {};
+
+			return ToUtf8(static_cast<APrimalDinoCharacter*>(defaults)->DescriptiveNameField());
+		}
+
 		/** Serialise un objet deja categorise */
 		nlohmann::json DescribeItem(UPrimalItem* item, bool& is_engram, bool& is_skin)
 		{
@@ -1356,7 +1367,7 @@ namespace QoL
 		if (args.Num() < 3)
 		{
 			ReplyError(connection, packet,
-				"Usage : qol.dinogroup <eosId> list | <groupe 1-10|all> <follow|stay|aggressive|passive|neutral|passiveflee|attack>");
+				"Usage : qol.dinogroup <eosId> list | classes | members <groupe> | setclass <groupe> <espece> | removeclass <groupe> <espece> | clear <groupe> | <groupe 1-10|all> <follow|stay|aggressive|passive|neutral|passiveflee|attack>");
 			return;
 		}
 
@@ -1390,6 +1401,140 @@ namespace QoL
 				nlohmann::json{{"eosId", eos_id},
 				               {"selected", state->CurrentlySelectedDinoOrderGroupField()},
 				               {"groups", groups}});
+			return;
+		}
+
+		// ---- Composition des groupes (1.5) -------------------------------------------
+		// Un groupe du menu T est defini par ESPECES (classes de creatures) : toute creature de
+		// ces especes y entre. Les commandes ci-dessous lisent et modifient ces especes.
+		//   qol.dinogroup <eos> classes                         especes de chaque groupe
+		//   qol.dinogroup <eos> setclass <groupe> <espece...>   ajoute une espece a un groupe
+		//   qol.dinogroup <eos> removeclass <groupe> <espece...> retire une espece
+		//   qol.dinogroup <eos> clear <groupe>                  vide les especes d'un groupe
+		//   qol.dinogroup <eos> members <groupe>                creatures de la tribu qui en font partie
+		// A VERIFIER EN JEU : les appels `_Implementation` ci-dessous (meme reserve que pour l'ordre).
+		if (what == "classes")
+		{
+			nlohmann::json groups = nlohmann::json::array();
+			auto fields = state->DinoOrderGroupsField();
+			for (int i = 0; i < 10; ++i)
+			{
+				FDinoOrderGroup& g = fields()[i];
+				nlohmann::json especes = nlohmann::json::array();
+				for (const auto& cls : g.DinoOrderClassesField())
+				{
+					const std::string nom = SpeciesOfClass(cls.uClass);
+					if (!nom.empty()) especes.push_back(nom);
+				}
+				groups.push_back({{"group", i + 1}, {"name", ToUtf8(g.DinoOrderGroupNameField())}, {"species", especes}});
+			}
+			Reply(connection, packet,
+				nlohmann::json{{"eosId", eos_id}, {"selected", state->CurrentlySelectedDinoOrderGroupField()}, {"groups", groups}});
+			return;
+		}
+
+		if (what == "setclass" || what == "removeclass" || what == "clear" || what == "members")
+		{
+			if (args.Num() < 4)
+			{
+				ReplyError(connection, packet, "Groupe manquant (1 a 10)");
+				return;
+			}
+			const int index = std::atoi(ToUtf8(args[3]).c_str()) - 1;
+			if (index < 0 || index > 9)
+			{
+				ReplyError(connection, packet, "Groupe invalide : 1 a 10");
+				return;
+			}
+
+			if (what == "clear")
+			{
+				state->ServerDinoOrderGroup_Clear_Implementation(index, true, false);
+				Reply(connection, packet, nlohmann::json{{"eosId", eos_id}, {"group", index + 1}, {"cleared", true}});
+				Log::GetLog()->info("Groupe {} vide pour {}", index + 1, eos_id);
+				return;
+			}
+
+			const int tribe = AsaApi::IApiUtils::GetTribeID(pc);
+			const FVector origin{0, 0, 0};
+			TArray<AActor*> actors =
+				AsaApi::GetApiUtils().GetAllActorsInRange(origin, 1000000.f, EServerOctreeGroup::DINOPAWNS_TAMED);
+
+			if (what == "members")
+			{
+				nlohmann::json dinos = nlohmann::json::array();
+				for (AActor* actor : actors)
+				{
+					if (actor == nullptr || actor->TargetingTeamField() != tribe) continue;
+					auto* dino = static_cast<APrimalDinoCharacter*>(actor);
+					if (!state->IsDinoInOrderGroup(index, dino)) continue;
+					if (dinos.size() >= static_cast<size_t>(kMaxDinos)) break;
+
+					int base_level = 0;
+					int extra_level = 0;
+					nlohmann::json points = nlohmann::json::object();
+					if (UPrimalCharacterStatusComponent* status = dino->MyCharacterStatusComponentField())
+					{
+						base_level = status->BaseCharacterLevelField();
+						extra_level = static_cast<int>(status->ExtraCharacterLevelField());
+						static const char* kNoms[] = {"hp", "st", "to", "ox", "fo", "wa", "te", "we", "me", "sp", "tf", "cr"};
+						auto appliques = status->NumberOfLevelUpPointsAppliedField();
+						auto apprivoises = status->NumberOfLevelUpPointsAppliedTamedField();
+						for (int i = 0; i < 12; ++i)
+						{
+							const int brut = static_cast<int>(appliques()[i]);
+							const int tame = static_cast<int>(apprivoises()[i]);
+							if (brut > 0 || tame > 0) points[kNoms[i]] = {{"w", brut}, {"t", tame}};
+						}
+					}
+
+					const AsaApi::MapCoords coords = AsaApi::GetApiUtils().FVectorToCoords(ActorPosition(actor));
+					dinos.push_back({{"s", ToUtf8(dino->DescriptiveNameField())},
+					                 {"n", ToUtf8(dino->TamedNameField())},
+					                 {"l", base_level + extra_level},
+					                 {"lb", base_level},
+					                 {"f", dino->bIsFemale()()},
+					                 {"lat", coords.y},
+					                 {"lon", coords.x},
+					                 {"pts", points}});
+				}
+				Reply(connection, packet,
+					nlohmann::json{{"eosId", eos_id}, {"group", index + 1}, {"count", dinos.size()}, {"dinos", dinos}});
+				return;
+			}
+
+			// setclass / removeclass : l'espece est retrouvee sur une creature reelle de la tribu
+			// (on n'a donc pas a charger une classe par son chemin, ce qui serait plus risque)
+			std::string espece;
+			for (int i = 4; i < args.Num(); ++i) espece += (i > 4 ? " " : "") + ToUtf8(args[i]);
+			if (espece.empty())
+			{
+				ReplyError(connection, packet, "Espece manquante");
+				return;
+			}
+
+			UClass* classe = nullptr;
+			for (AActor* actor : actors)
+			{
+				if (actor == nullptr || actor->TargetingTeamField() != tribe) continue;
+				auto* dino = static_cast<APrimalDinoCharacter*>(actor);
+				if (Lowercase(ToUtf8(dino->DescriptiveNameField())) == Lowercase(espece))
+				{
+					classe = dino->ClassField();
+					break;
+				}
+			}
+			if (classe == nullptr)
+			{
+				ReplyError(connection, packet, "Aucune creature de cette espece dans la tribu : " + espece);
+				return;
+			}
+
+			state->ServerDinoOrderGroup_AddOrRemoveDinoClass_Implementation(index, TSubclassOf<APrimalDinoCharacter>(classe),
+				what == "setclass");
+			Reply(connection, packet,
+				nlohmann::json{{"eosId", eos_id}, {"group", index + 1}, {"species", espece}, {"action", what}});
+			Log::GetLog()->info("Groupe {} : {} {} pour {}", index + 1, what, espece, eos_id);
 			return;
 		}
 
